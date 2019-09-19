@@ -109,3 +109,5 @@ venv.bak/
 measure_generation/data/
 measure_generation/completed_data/
 *.musicxml
+*.svg
+*.png

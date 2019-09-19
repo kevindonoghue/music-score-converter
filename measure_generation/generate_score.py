@@ -199,9 +199,17 @@ def generate_attributes(measure_length, key_number):
     return attributes
 
 
-def generate_score(measure_length, num_measures, key_number, rest_prob, chord_probs):
+def generate_score(num_measures, measure_length, key_number, rest_prob, chord_probs):
     soup = BeautifulSoup('', 'xml')
     score_partwise = soup.new_tag('score-partwise', version='3.1')
+    work = soup.new_tag('work')
+    work_title = soup.new_tag('work-title')
+    alpha = list('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890      ')
+    text = list(np.random.choice(alpha, size=np.random.randint(8, 25)))
+    text = ''.join(text)
+    work_title.string = text
+    score_partwise.append(work)
+    work.append(work_title)
     part_list = soup.new_tag('part-list')
     score_part = soup.new_tag('score-part', id='P1')
     part_name = soup.new_tag('part-name')
@@ -227,7 +235,7 @@ def generate_score(measure_length, num_measures, key_number, rest_prob, chord_pr
 
 chord_probs = np.array([5, 1, 5, 5, 5, 5, 1, 100, 1, 5, 5, 5, 5, 1, 5])
 chord_probs = chord_probs / chord_probs.sum()
-print(generate_score(16, 4, 3, 0.2, chord_probs).prettify())
+# print(generate_score(16, 4, 3, 0.2, chord_probs).prettify())
 
-# with open('sample_score.musicxml', 'w+') as f:
-#     f.write(str(generate_score(16, 16, 3, 0.2, chord_probs)))
+# with open('sample_score2.musicxml', 'w+') as f:
+#     f.write(str(generate_score(64, 16, 3, 0.2, chord_probs)))
