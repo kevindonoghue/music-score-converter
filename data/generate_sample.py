@@ -11,7 +11,7 @@ import time
 
 
 
-def generate_sample(sample_size, sample_name, height, width, treble_tp_key, bass_tp_key, treble_cp_key, bass_cp_key, rest_prob, measure_length_choices=(8, 12, 16), key_number_choices=tuple(range(-7, 8))):
+def generate_sample(sample_size, multiplicity, sample_name, height, width, treble_tp_key, bass_tp_key, treble_cp_key, bass_cp_key, rest_prob, measure_length_choices=(8, 12, 16), key_number_choices=tuple(range(-7, 8))):
     t = time.time()
     if not os.path.exists(sample_name + '/'):
         os.mkdir(sample_name + '/')
@@ -24,9 +24,7 @@ def generate_sample(sample_size, sample_name, height, width, treble_tp_key, bass
     for i in range(sample_size):
         print(f'{i}/{sample_size}    time: {time.time() - t} seconds')
         measure_length = np.random.choice(measure_length_choices)
-        measure_lengths.append(measure_length)
         key_number = np.random.choice(key_number_choices)
-        key_numbers.append(key_number)
         soup = generate_measure(measure_length, key_number, rest_prob, treble_tp_key, bass_tp_key, treble_cp_key, bass_cp_key)
         with open('temp.musicxml', 'w+') as f:
             f.write(str(soup))
@@ -35,14 +33,19 @@ def generate_sample(sample_size, sample_name, height, width, treble_tp_key, bass
         subprocess.call(['mscore', 'temp.mscx', '-o', 'temp.svg'])
         png_path = 'temp-1.png'
         svg_path = 'temp-1.svg'
-        image = crop(png_path, svg_path)
-        image = random_augmentation(image, height, width)
-        image = (image*255).astype(np.uint8)
-        images.append(image)
-        
+        for _ in range(multiplicity):
+            image = crop(png_path, svg_path)
+            image = random_augmentation(image, height, width)
+            image = (image*255).astype(np.uint8)
+            images.append(image)
+            measure_lengths.append(measure_length)
+            key_numbers.append(key_number)
+
+
         # this line has to go down here since xml_to_pc changes soup in place
         pc = ['<START>'] + xml_to_pc(soup) + ['<END>']
-        pc_data.append(pc)
+        for _ in range(multiplicity):
+            pc_data.append(pc)
         
         os.remove('temp.musicxml')
         os.remove('temp.mscx')
@@ -60,6 +63,7 @@ def generate_sample(sample_size, sample_name, height, width, treble_tp_key, bass
     
     info = {'sample_name': sample_name,
             'sample_size': sample_size,
+            'multiplicity': multiplicity,
             'treble_tp_key': treble_tp_key,
             'bass_tp_key': bass_tp_key,
             'treble_cp_key': treble_cp_key,
