@@ -1,0 +1,9 @@
+Install MuseScore2 in the following way:
+sudo add-apt-repository ppa:mscore-ubuntu/mscore-stable
+sudo apt-get update
+sudo apt-get install musescore
+
+Then place custom_style.mss in ~/Documents/MuseScore2/Styles
+
+Then set the environment variable QT_QPA_PLATFORM to "offscreen" by
+export QT_QPA_PLATFORM=offscreen
