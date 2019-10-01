@@ -61,6 +61,7 @@ def generate_sample(sample_size, multiplicity, sample_name, height, width, trebl
     np.save(sample_name + '/' + 'key_numbers.npy', key_numbers)
     np.save(sample_name + '/' + 'images.npy', images)
     
+    time_elapsed = time.time() - t
     info = {'sample_name': sample_name,
             'sample_size': sample_size,
             'multiplicity': multiplicity,
@@ -70,10 +71,8 @@ def generate_sample(sample_size, multiplicity, sample_name, height, width, trebl
             'bass_cp_key': bass_cp_key,
             'rest_prob': rest_prob,
             'measure_length_choices': list(measure_length_choices),
-            'key_number_choices': list(key_number_choices)}
+            'key_number_choices': list(key_number_choices),
+            'time_elapsed': time_elapsed}
     with open(sample_name + '/' + 'info.json', 'w+') as f:
         json.dump(info, f)
-        
-    print(f'time elapsed: {time.time() - t} seconds')
-    
 
