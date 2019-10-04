@@ -24,16 +24,15 @@ def get_bboxes(svg_path):
         x = np.array(list(map(lambda y: list(map(float, y.split(','))), x)))
         return x
 
-    # handle the title of the page
+    # handle the title of the page (if it exists)
     text_tags = [x for x in soup.find_all('path') if x['class'] == 'Text']
-    if text_tags:
-        text_tag = text_tags[-1]
-        text_coords = get_coords(text_tag['d'])
-        text_y_coords = [x[1] for x in text_coords]
-        text_bottom_height = np.max(text_y_coords)
-        first_height = text_bottom_height
+    title_tag = text_tags[-1] # really 'candidate' title tag
+    title_coords = get_coords(title_tag['d'])
+    title_y_coords = [x[1] for x in title_coords]
+    if np.min(title_y_coords) < 45:
+        first_height = np.max(title_y_coords)
     else:
-        first_height = 0
+        first_height = 25
 
     last_height = (staff_line_heights[-1] + height)/2
 
@@ -116,6 +115,13 @@ def get_bboxes(svg_path):
             regional_bboxes.append(((x_coords[j], h1), (x_coords[j+1], h2)))
         bboxes.append(regional_bboxes)
 
-    return bboxes
 
-# bboxes = get_bboxes('sample_score-3.svg')
+    bbox_arr = []
+    for row in bboxes:
+        for x in row:
+            bbox_arr.append(np.array(x))
+    bbox_arr = np.array(bbox_arr)
+    return bbox_arr
+
+# bbox_arr = get_bboxes('sample_score-3.svg')
+# print(bbox_arr)
