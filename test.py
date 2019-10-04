@@ -11,4 +11,4 @@ from PIL import Image, ImageDraw
 from data.generate_score_sample import generate_score_sample, tight_tp_choices, wide_tp_choices, cp_choices
     
 
-generate_score_sample('asdf', 1, 256, ('complex',), ('complex',), ('complex',), ('complex',))
+generate_score_sample('asdf', 1, 64, ('complex',), ('complex',), ('complex',), ('complex',))
