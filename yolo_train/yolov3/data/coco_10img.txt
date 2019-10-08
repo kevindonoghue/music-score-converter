@@ -1,0 +1,10 @@
+../coco_10img/images/COCO_train2014_000000000009.jpg
+../coco_10img/images/COCO_train2014_000000000025.jpg
+../coco_10img/images/COCO_train2014_000000000030.jpg
+../coco_10img/images/COCO_train2014_000000000034.jpg
+../coco_10img/images/COCO_train2014_000000000036.jpg
+../coco_10img/images/COCO_train2014_000000000049.jpg
+../coco_10img/images/COCO_train2014_000000000061.jpg
+../coco_10img/images/COCO_train2014_000000000064.jpg
+../coco_10img/images/COCO_train2014_000000000071.jpg
+../coco_10img/images/COCO_train2014_000000000072.jpg

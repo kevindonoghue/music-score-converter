@@ -1,0 +1,58 @@
+label.myLabel input[type="file"] {
+    position: absolute;
+    top: -1000px;
+}
+
+label.myLabel {
+    cursor: pointer;
+}
+
+input[type='text'] {
+    font-size: inherit;
+}
+
+.container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    margin-right: -50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.block {
+    display: inline-block;
+}
+.subcontainer {
+    display: grid;
+    justify-content: center;
+    align-items: stretch;
+    grid-template-columns: 215px 300px 215px;
+    grid-template-rows: auto auto auto auto;
+    grid-gap: 10px 0px;
+}
+
+.errorlist {
+    list-style: none;
+    color: red;
+    margin: 0;
+    padding: 0;
+}
+
+.grid-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.larger-text {
+    font-size: 20;
+}
+
+h1 {
+    font-size: 90;
+}
+
+.border-item {
+    border-bottom: 1px solid #bbbbbb;
+}

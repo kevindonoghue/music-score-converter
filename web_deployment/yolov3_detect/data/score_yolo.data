@@ -1,0 +1,6 @@
+classes=1
+train=./data/score_yolo_train_images.txt
+valid=./data/score_yolo_test_images.txt
+names=./data/score_yolo.names
+backup=backup/
+eval=scores_yolo

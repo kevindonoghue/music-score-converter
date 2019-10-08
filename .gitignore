@@ -116,3 +116,7 @@ samples/
 samples2/
 samples3/
 scores/
+archive/
+large_net_lr3e-4/
+yolo_train/train
+yolo_train/val

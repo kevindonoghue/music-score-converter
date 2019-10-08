@@ -1,0 +1,38 @@
+{% load static %}
+
+<html>
+
+<head>
+  <Title>Music Transcription</Title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  <link rel="stylesheet" href="{% static 'app/homepage.css' %}">
+</head>
+
+<body>
+  <div class="container">
+    
+    
+  <div class='block'>
+      <h1>MusicTranscriber</h1>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="subcontainer">
+    <div class="grid-item border-item"><label class="myLabel btn btn-secondary" for="{{ form.page.id_for_label }}"><span class="larger-text">{{ form.page }}Choose a Page</span></label></div>
+    <div class="grid-item larger-text border-item">Key: C</div>
+    <div class="grid-item larger-text border-item">Time Signature: {{ form.time_signature }}</div>
+    <div class="grid-item"></div>
+    <div class="grid-item"><button class="btn btn-primary" type='submit'> <span class="larger-text">Generate MusicXML</span> </button></div>
+    <div class="grid-item"></div>
+    <div class="grid-item"></div>
+    <div>Or click <a href="{% url 'example' %}">here</a> to try it with <a href='media/minuet_larger.png'>this</a> example.</div>
+    <div class="grid-item"></div>
+    <div class="grid-item"></div>
+    <div class="grid-item">{{ form.time_signature.errors }}</div>
+    <div class="grid-item"></div>
+  </div>
+  </form>
+</div>
+  
+</div>
+</body>
+</html>

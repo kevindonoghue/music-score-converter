@@ -42,9 +42,9 @@ def generate_score_sample(sample_name, sample_size, num_measures,
         measure_length = np.random.choice([8, 12, 16])
         key_number = 0
         
-        with open(f'{sample_name}/temp.musicxml', 'w+') as f:
+        with open(f'scores/{sample_name}/temp.musicxml', 'w+') as f:
             f.write(str(generate_score(num_measures, measure_length, key_number, rest_prob, treble_tp_key_choices=treble_tp_key_choices, bass_tp_key_choices=bass_tp_key_choices, treble_cp_key_choices=treble_cp_key_choices, bass_cp_key_choices=bass_cp_key_choices)))
-        subprocess.check_call(['mscore', '-S', str(pathlib.Path.home()) + '/Documents/MuseScore2/Styles/custom_style.mss', f'{sample_name}/temp.musicxml', '-o', f'{sample_name}/temp.mscx'])
+        subprocess.check_call(['mscore', '-S', str(pathlib.Path.home()) + '/Documents/MuseScore2/Styles/custom_style.mss', f'scores/{sample_name}/temp.musicxml', '-o', f'scores/{sample_name}/temp.mscx'])
         subprocess.check_call(['mscore', f'scores/{sample_name}/temp.mscx', '-o', f'scores/{sample_name}/temp.png'])
         subprocess.check_call(['mscore', f'scores/{sample_name}/temp.mscx', '-o', f'scores/{sample_name}/temp.svg'])
 
@@ -56,9 +56,12 @@ def generate_score_sample(sample_name, sample_size, num_measures,
             if heights.max() > 0.25:
                 i += 1
                 continue
-            page = io.imread(f'{sample_name}/temp-{i}.png')
+            page = io.imread(f'scores/{sample_name}/temp-{i}.png')
             page = page[:, :, 3]/255
             page = 1 - page
+            if page.shape[0] == 0:
+                i += 1
+                continue
             page, bbox_arr = random_score_augmentation(page, bbox_arr, 416, 416)
             bbox_arr = np.clip(bbox_arr, 0, 1)
             page = gray2rgb(page)
@@ -76,7 +79,7 @@ def generate_score_sample(sample_name, sample_size, num_measures,
                     height = (y2 - y1)
                     f.write(f'0 {center_x} {center_y} {width} {height}\n')
                     
-            # image = Image.open(f'{sample_name}/{phase}/images/{filename}.png')
+            # image = Image.open(f'scores/{sample_name}/{phase}/images/{filename}.png')
             # draw = ImageDraw.Draw(image)
             # for k in range(bbox_arr.shape[0]):
             #     x1 = bbox_arr[k, 0, 0]

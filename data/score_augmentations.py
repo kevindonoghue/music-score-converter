@@ -51,7 +51,7 @@ def clip_up(x, bbox_arr, p):
 
 def clip_down(x, bbox_arr, p):
     k = int(x.shape[0]*p)
-    x = x[:-k, :]
+    x = x[:x.shape[0]-k, :]
     bbox_arr[:, :, 1] = bbox_arr[:, :, 1]/(1-p)
     return x, bbox_arr
 
