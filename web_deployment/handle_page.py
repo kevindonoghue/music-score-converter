@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 from skimage import io
+from skimage.color import gray2rgb
 from yolov3_detect.detect import detect
 from django.conf import settings
 
@@ -37,7 +38,9 @@ def handle_page(path, measure_length, key_number, dir):
     detect(opt)
     image = io.imread(os.path.join(MEDIA_ROOT, filename + '.png'))
     image_with_boxes = io.imread(os.path.join(MEDIA_ROOT, 'yolo_output', filename + '.png'))
-    height, width, _ = image.shape
+    height, width = image.shape[0], image.shape[1]
+    if len(image.shape) == 2:
+        image = gray2rgb(image)
     with open(os.path.join(MEDIA_ROOT, 'yolo_output', filename + '.txt')) as f:
         bbox_string = f.read()
     lines = bbox_string.split('\n')[:-1]
@@ -69,4 +72,4 @@ def handle_page(path, measure_length, key_number, dir):
 
 
 
-# handle_page('c_major_piece4.png', 16, 0, None)
+# handle_page('minuet_larger2.png', 12, 0, None)
