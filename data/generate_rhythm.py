@@ -1,9 +1,14 @@
 import numpy as np
 
-# everything here is for when a quarter note is 4 units long (so the fundamenmtal unit is a 16th)
-# the longest measure is 16 units long
-# tp stands for transition probabilities
 
+"""This file is used to subdivide measures into smaller units.
+Everything is with respect to 16th notes, a 4/4 measure is 16 units long. If it is divided into (2, 2, 4, 4, 4)
+then this corresponds to two eighth notes followed by three quarter notes. The division is done recursively,
+and at every step there is a probability to not subdivide, and probability to split the division into 2.
+These probabilities are encoded in each of the values of the dictionary tp.
+The different values in tp correspond to different ways to divide the measure up.
+For example tp['quarters'] only divides the measure into quarters.
+"""
 
 
 tp = dict()
@@ -194,6 +199,8 @@ for x in tp:
 def generate_rhythm(tp_key, measure_length):
     # measure length is 16, 12, or 8 for 4/4, 3/4, or 2/4
     # tp_key is a key of the dictionary tp defined at this file
+    # returns a random artition of measure length as a list,
+    # for example if measure_length is 12 it might return [4, 4, 1, 3] 
     items = list(tp[tp_key][measure_length].items())
     probs = [prob for _, prob in items]
     n = np.random.choice(len(probs), p=probs)
@@ -206,5 +213,5 @@ def generate_rhythm(tp_key, measure_length):
         return subdivision
     
     
-# for key in tp:
-#     print(key, produce_subdivision(tp[key], np.random.choice([8, 12, 16])))
+for key in tp:
+    print(key, generate_rhythm(key, np.random.choice([8, 12, 16])))

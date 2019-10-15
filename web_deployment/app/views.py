@@ -45,8 +45,17 @@ def get_blank_measure(measure_length):
     return blank_measure
  
 def create_musicxml(path, measure_length, key_number):
+    """
+    This function takes the path to an uploaded file, its measure_length, and its key number
+    (usually info inputted by user) and passes the image through the first neural net to extract the measures,
+    then passes each measure through the second neural net to convert it to xml.
+    
+    The handle_page function covers the first part and the run_model function covers the second.
+    """
     handle_page(path, measure_length, key_number, os.path.join(MEDIA_ROOT, 'current_measures')) 
     measures = []
+    
+    # initialize the xml output
     soup = BeautifulSoup(features='xml')
     score_partwise = soup.new_tag('score-partwise', version='3.1')
     part_list = soup.new_tag('part-list')
@@ -60,11 +69,14 @@ def create_musicxml(path, measure_length, key_number):
     part = soup.new_tag('part', id='P1')
     score_partwise.append(part)
 
+    # loop through each extracted measure and convert it to xml
+    # if the conversion fails, return a blank measure
     for i in range(len(os.listdir(os.path.join(MEDIA_ROOT, 'current_measures')))):
         print('handling measure ', i+1)
         measure_soup = run_model(os.path.join(MEDIA_ROOT, 'current_measures', f'subimage{i}.png'), measure_length, key_number)
         if measure_soup:
             measure = measure_soup.find('measure')
+            # only need the key and time sig info on the first measure
             if i != 0:
                 attributes = measure.find('attributes')
                 attributes.extract()
@@ -77,6 +89,7 @@ def create_musicxml(path, measure_length, key_number):
     for measure in measures:
         part.append(measure)
 
+    # pick a random filename for the output
     filename = np.random.choice(list('abcdefghijklmnopqrstuvwxyz0123456789'), size=16)
     filename = ''.join(filename)
     with open(os.path.join(MEDIA_ROOT, f'{filename}.musicxml'), 'w+') as f:
@@ -85,6 +98,9 @@ def create_musicxml(path, measure_length, key_number):
         
 
 def example(request):
+    """
+    This view handles the curated example linked to on the frontpage.
+    """
     path = os.path.join(MEDIA_ROOT, 'minuet_larger.png')
     key_number = 0
     measure_length = 12
@@ -93,6 +109,11 @@ def example(request):
     
 
 def homepage(request):
+    """
+    This view handles the main page of the website.
+    For a post request, it calls the create_musicxml function then redirects to the generated xml file.
+    For a get request, it displays the form for uploading a file.
+    """
     if request.method == 'POST':
         form = UploadedPageForm(request.POST, request.FILES)
         if form.is_valid():

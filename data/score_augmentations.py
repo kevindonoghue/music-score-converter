@@ -2,20 +2,11 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage.filters import correlate
 from skimage import transform
+from augmentations import *
 
 
-# random_augmentation takes a numpy array of dimension 2 with entries between 0 and 1, distorts it, and rescales it
-# the rest of the functions are helper functions
-
-# bbox_arr is a an array of shape (N, 2, 2) where there are N bboxes, and bbox_arr[i, :, :] is [[x1, y1], [x2, y2]]
-
-
-
-def rgb_to_grayscale(x):
-    # x is an numpy array with shape (a, b, 3)
-    a, b, _ = x.shape
-    weights = np.array([[0.2125, 0.7154, 0.0721]]).T
-    return (x @ weights).reshape(a, b)
+"""See the documentation for augmentations. These functions are analogous,
+except they also have to keep track of an array bbox_arr that contains bounding box coordinates."""
 
 
 ########################### augmentation functions ###########################

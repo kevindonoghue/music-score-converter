@@ -3,8 +3,8 @@ from bs4 import BeautifulSoup
 from PIL import Image
 
 def crop(png_path, svg_path):
-    # crops the image in png_path using the data in svg_path
-    # crops the image so that the clef, key, and time signatures are cropped out
+    """Crops the image in png_path using the data in svg_path.
+    crops the image so that the clef, key, and time signatures are cropped out."""
     with open(svg_path) as f:
         soup = BeautifulSoup(f, 'xml')
     image = Image.open(png_path)

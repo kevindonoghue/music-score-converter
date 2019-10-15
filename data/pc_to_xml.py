@@ -1,6 +1,9 @@
 from bs4 import BeautifulSoup, Tag, NavigableString
 
-# converts pseudocode to musicxml
+
+"""
+xml is too complicated to use in an LSTM, so I use a pseudocode instead. The function pc_to_xml below converts this pseudocode to xml.
+"""
 
 tag_names = ['score-partwise', 'part-list', 'score-part', 'part-name', 'part', 'measure', 'attributes', 'divisions',
              'key', 'fifths', 'time', 'beats', 'beat-type', 'clef', 'sign', 'line', 'note', 'pitch', 'step', 'alter', 'octave',
@@ -10,6 +13,10 @@ tag_names = ['score-partwise', 'part-list', 'score-part', 'part-name', 'part', '
 
 
 def fix_pitches(soup):
+    """
+    As part of the encoding of the xml to pseudocode, the syntax for pitches is modified slightly.
+    This reverses that modification.
+    """
     pitches = soup.find_all('pitch')
     for pitch in pitches:
         step, alter, octave = pitch.string.split()
@@ -32,8 +39,10 @@ def fix_pitches(soup):
 
 
 def fix_slurs(soup):
-    # in generating the pseudocode, the syntax for slurs is simplified
-    # this undos that simplification
+    """
+    As part of the encoding of the xml to pseudocode, the syntax for slurs is modified slightly.
+    This reverses that modification.
+    """
     slurs = soup.find_all('slur')
     if len(slurs) % 2 == 1:
         slurs = slurs[:-1]
@@ -56,8 +65,10 @@ def fix_slurs(soup):
         i += 2
 
 def fix_dynamics(soup):
-    # in generating the pseudocode, the syntax for dynamics is simplified
-    # this undos that simplification
+    """
+    As part of the encoding of the xml to pseudocode, the syntax for dynamics is modified slightly.
+    This reverses that modification.
+    """
     old_dynamics = soup.find_all(['ff', 'f', 'mf', 'mp', 'p', 'pp'])
     for old_dynamic in old_dynamics:
         direction = soup.new_tag('direction')
@@ -117,6 +128,7 @@ def generate_attributes(measure_length, key_number):
     return attributes
 
 def restore_attributes(soup, measure_length, key_number):
+    # the time and key signature information is inserted into the first measure on the page
     first_measure = soup.find('measure')
     attributes = generate_attributes(measure_length, key_number)
     first_measure.insert(0, attributes)

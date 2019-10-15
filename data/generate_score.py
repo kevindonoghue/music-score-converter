@@ -6,6 +6,12 @@ from bs4 import BeautifulSoup
 
 
 def generate_measure_for_score(measure_length, key_number, rest_prob, treble_tp_key, bass_tp_key, treble_cp_key, bass_cp_key, measure_number):
+    """
+    Each musical score is made up of measures.
+    This randomly produces the xml for a measure.
+    See the comments on generate_measure for the arguments.
+    If the measure is the nth measure of the score, then measure_number is n.
+    """
     decorated_measure = generate_measure(measure_length, key_number, rest_prob, treble_tp_key, bass_tp_key, treble_cp_key, bass_cp_key)
     measure = decorated_measure.find('measure')
     measure.attrs['number'] = str(measure_number)
@@ -61,8 +67,6 @@ def generate_attributes(measure_length, key_number):
 def generate_score(num_measures, measure_length, key_number, rest_prob, treble_tp_key_choices=('complex',), bass_tp_key_choices=('complex',), treble_cp_key_choices=('complex',), bass_cp_key_choices=('complex',)):
     # generates a score num_measures measures long
     # measure_length is the number of sixteenth notes in a measure
-    # see below for an example of chord_probs
-    # the chord_probs[i] is the probability of adding a note off an i-7 interval (where the interval 1 is a unison)
     soup = BeautifulSoup('', 'xml')
     score_partwise = soup.new_tag('score-partwise', version='3.1')
     work = soup.new_tag('work')
@@ -102,11 +106,6 @@ def generate_score(num_measures, measure_length, key_number, rest_prob, treble_t
 
     return soup
 
-
-
-chord_probs = np.array([5, 1, 5, 5, 5, 5, 1, 100, 1, 5, 5, 5, 5, 1, 5])
-chord_probs = chord_probs / chord_probs.sum()
-# print(generate_score(16, 4, 3, 0.2, chord_probs).prettify())
 
 # with open('sample_score.musicxml', 'w+') as f:
 #     f.write(str(generate_score(64, 16, 0, 0.2, treble_tp_key_choices=('quarters',))))

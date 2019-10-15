@@ -6,8 +6,10 @@ import os
 import json
 import time
 
+# set to 'cuda' for GPU
 device='cpu'
 
+# the set of symbols in the pseudocode translation of xml
 tokens = [
     '<START>', '<END>', '<PAD>', 'measure', 'note', 'pitch', 'step', 'alter',
     'octave', 'duration', 'type', 'rest', 'dot', 'staff', 'notations', 'slur',
@@ -15,17 +17,23 @@ tokens = [
 + ['-1'] + list('0123456789') + ['10', '11', '12', '13', '14', '15', '16'] + ['}'] \
 + ['whole', 'half', 'quarter', 'eighth', '16th']
 
+# dictionaries to convert the otkens dictionary to numbers and vice versa
 word_to_ix = {word: i for i, word in enumerate(tokens)}
 ix_to_word = {str(i): word for i, word in enumerate(tokens)}
 len_lexicon = len(word_to_ix)
 
+# directory to access to the data for the model
 dataset_dir = 'storage/samples/'
+
+# some hyperparameters for the model
 lstm_hidden_size = 128
 fc1_output_size = 128
 seq_len = 64
 batch_size = 64
 
 def get_time_signature_layer(measure_length, height=224, width=224):
+    """The time signature data is stored in a channel in the input image.
+    This function returns that channel. Here measure length is expected to be in (8, 12, 16)."""
     x = np.zeros((height, width)).astype(np.uint8)
     if measure_length == 12:
         x[:int(height/2)] += 255
@@ -34,13 +42,23 @@ def get_time_signature_layer(measure_length, height=224, width=224):
     return x
 
 def get_key_signature_layer(key_number, height=224, width=224):
-    # key number is between -7 and 7 inclusive
+    """The key signature data is stored in a channel in the input image.
+    This function returns that channel. Here measure key number is expected to be in range(-7, 8)"""
     x = np.zeros((height, width)).astype(np.uint8)
     splits = np.array_split(x, 15)
     splits[key_number+7] += 255
     return x
 
 class Dataset():
+    """
+    The data is stored in folders in dataset_dir such that each folder contains the following:
+    - a numpy archive images.npy containing an array of shape (N, 224, 224) where N is the number of images in the sample
+    - numpy archives measure_lengths and key_numbers that contain the measure_lengths (8, 12, or 16) or key_numbers (in range(-7, 8)) for the images
+    - a json file pc_data.json ('pc' stands for pseudocode) that encodes a list whose nth entry is the pseudocode for the nth image
+    
+    This class collects these data under a single umbrella. It converts the pseudocode into integers
+    and self.sequences is a list of the subsequences of the pseudocode of length seq_len
+    """
     def __init__(self, path, seq_len):
         self.seq_len = seq_len
         self.images = np.load(path + 'images.npy')
@@ -57,11 +75,20 @@ class Dataset():
             for j in range(len(pc)-seq_len):
                 self.sequences.append(pc_as_ix[j:j+seq_len+1])
                 self.image_indices.append(i)
+        
+        # self.image_indices is a length of the same length as self.sequences
+        # the self.image_indices[n] is the index in self.images of the image corresponding to the sequence in self.sequences
         self.image_indices = np.array(self.image_indices)
         self.sequences = np.array(self.sequences)
             
     def get_batch(self, batch_size, val=False):
-        validation_partition = int(len(self.sequences)*0.9)
+        """
+        get_batch returns three torch tensors:
+        - image_batch has shape (batch_size, 3, 224, 224) and consists of the image concatenated with the key and time signature layers
+        - sequence_batch has shape (batch_size, seq_len) and consists of subsequences of the pseudocode of the images in image_batch
+        - image_batch_indices has shape (batch_size,) and image_batch_indices[n] is the corresponding index in self.images for image_batch[n]
+        """
+        validation_partition = int(len(self.sequences)*0.9) # 0.9 can be changed to give a different validation split
         if not val:
             sequence_batch_indices = np.random.choice(len(self.sequences[:validation_partition]), size=batch_size)
         else:
@@ -87,6 +114,9 @@ class Dataset():
     
     
 def get_datasets(n):
+    """
+    Randomly generates n datasets and returns them in a list.
+    """
     all_datasets = os.listdir(dataset_dir)
     dataset_sample = []
     for _ in range(n):
@@ -97,6 +127,9 @@ def get_datasets(n):
     return dataset_sample
 
 class ConvSubunit(nn.Module):
+    """
+    A torch module consisting of a single convolutional unit followed by dropout, batchnorm, relu
+    """
     def __init__(self, input_size, output_size, filter_size, stride, padding, dropout):
         super().__init__()
         self.conv = nn.Conv2d(input_size, output_size, filter_size, stride=stride, padding=padding)
@@ -109,6 +142,9 @@ class ConvSubunit(nn.Module):
         return self.sequential(x)
     
 class LargeConvUnit(nn.Module):
+    """
+    A torch module consisting of four ConvSubunits.
+    """
     def __init__(self, input_size, output_size, filter_size, stride, padding, dropout):
         super().__init__()
         self.subunit1 = ConvSubunit(input_size, output_size, filter_size, 1, padding, dropout)
@@ -126,6 +162,9 @@ class LargeConvUnit(nn.Module):
         return x
     
 class SmallConvUnit(nn.Module):
+    """
+    A torch module consisting of two ConvSubunits.
+    """
     def __init__(self, input_size, output_size, filter_size, stride, padding, dropout):
         super().__init__()
         self.subunit1 = ConvSubunit(input_size, output_size, filter_size, 1, padding, dropout)
@@ -137,9 +176,17 @@ class SmallConvUnit(nn.Module):
         return x
     
 class Net(nn.Module):
+    """
+    A net that, once trained, can be used to generate xml code for a given input image.
+    
+    The architecture consists of two LSTMs and a CNN. The image is processed in the CNN,
+    and a subsequence of the pseudocode for that image is processed in the first LSTM.
+    The output of the first LSTM is concatenated with the output of the CNN and fed into a second LSTM,
+    which is trained to predict the next character in the subsequence.
+    """
     def __init__(self, save_dir, cnn, len_lexicon, lstm_hidden_size, fc1_output_size, device, num_directions=1):
         super().__init__()
-        self.save_dir = save_dir
+        self.save_dir = save_dir # directory to save logfile and save the model weights periodically
         self.len_lexicon = len_lexicon
         self.lstm_hidden_size = lstm_hidden_size
         self.fc1_output_size = fc1_output_size
@@ -189,41 +236,25 @@ class Net(nn.Module):
         for i in range(iterations):
             self.train()
             if i % 500 == 0:
-                dataset = get_datasets(1)[0]
+                dataset = get_datasets(1)[0] # this gets a single dataset every 500 iterations
             arr, seq, _ = dataset.get_batch(batch_size)
-            seq1 = seq[:, :-1]
-            seq2 = seq[:, 1:]
+            seq1 = seq[:, :-1] # initial sequence
+            seq2 = seq[:, 1:] # next characters in the sequence
             out, _, _ = self.forward(arr, seq1)
             out = out.view(-1, self.len_lexicon)
             targets = seq2.reshape(-1)
             loss = loss_fn(out, targets)
-            loss.backward()
-            optimizer.step()
+            loss.backward() # backprop
+            optimizer.step() # gradient descent
             optimizer.zero_grad()
             
             
-#                 out_val = out_val.cpu().detach().numpy().reshape(64, len_lexicon)
-#                 out_val = out_val.argmax(axis=1)
-#                 out_val = [ix_to_word[str(x)] for x in out_val]
-#                 targets_val = [ix_to_word[str(x)] for x in targets_val.cpu().detach().numpy()]
-#                 print('train loss: ', loss)
-#                 print('val loss: ', val_loss)
-#                 print(out_val)
-#                 print(targets_val)
-#                 print('----------------------------------------------')
-            
-            
-#             out_simplified = out.cpu().detach().numpy().reshape(64, len_lexicon)
-#             out_simplified = out_simplified.argmax(axis=1)
-#             out_simplified = [ix_to_word[str(x)] for x in out_simplified]
-#             targets_simplified = [ix_to_word[str(x)] for x in targets.cpu().detach().numpy()]
-#             print(out_simplified)
-#             print(targets_simplified)
-#             print('--------------------------')
-            
             train_time += time.time() - time_checkpoint
             time_checkpoint = time.time()
+            
+            # print out progress every once in a while
             if i % print_every == 0:
+                # get an example sequence from the validation set to compute validation loss
                 with torch.no_grad():
                     arr_val, seq_val, _ = dataset.get_batch(batch_size, val=True)
                     seq1_val = seq_val[:, :-1]
@@ -232,18 +263,30 @@ class Net(nn.Module):
                     out_val = out_val.view(-1, self.len_lexicon)
                     targets_val = seq2_val.reshape(-1)
                     val_loss = loss_fn(out_val, targets_val)
-                arr, _, image_batch_indices = dataset.get_batch(1, val=True)
+                    
+                # get an example from the training set
+                arr, _, image_batch_indices = dataset.get_batch(1, val=False)
                 pc = dataset.pc_data[image_batch_indices[0]]
                 pc = ' '.join(pc)
+                
+                # predict that example without randomness
                 pred_seq = self.predict(arr)
                 pred_seq = ' '.join(pred_seq)
+                
+                # predict that example with some randomness
                 pred_seq2 = self.predict_stochastic(arr)
                 pred_seq2 = ' '.join(pred_seq2)
-                arr_val, _, image_batch_indices = dataset.get_batch(1, val=False)
+                
+                # get an example from the validation set
+                arr_val, _, image_batch_indices = dataset.get_batch(1, val=True)
                 true_val = dataset.pc_data[image_batch_indices[0]]
                 true_val = ' '.join(true_val)
+                
+                # predict that example
                 pred_val = self.predict(arr_val)
                 pred_val = ' '.join(pred_val)
+                
+                # save the predictions and ground truths to a log file
                 with open(f'{self.save_dir}log.txt', 'a+') as f:
                     info_string = f"""
                     ----
@@ -268,6 +311,9 @@ class Net(nn.Module):
                     """.replace('    ', '')
                     print(info_string)
                     f.write(info_string)
+                    
+            # every so often reduce learning rate and save the model progress
+            # also save a checkpoint json file to be used in self.resume_fit
             if i % save_every == 0 and i != 0:
                 for param_group in optimizer.param_groups:
                     param_group['lr'] *= 0.99
@@ -276,6 +322,9 @@ class Net(nn.Module):
                     json.dump({'train_time': train_time, 'past_iterations': past_iterations+i}, f)
                     
     def resume_fit(self, iterations, optimizer, loss_fn, print_every=100, save_every=5000):
+        """
+        After stopping the model or loading, can resume fit. Relies on the file training_info.json created by self.fit when the model is saved.
+        """
         with open(f'{self.save_dir}training_info.json', 'w+') as f:
             training_info = json.load(f)
         train_time = training_info['train_time']
@@ -286,6 +335,12 @@ class Net(nn.Module):
                 
              
     def predict(self, arr):
+        """
+        All sequences start with a <START> token and end with an <END> token.
+        This uses the LSTM to recursively predict the next character in the pseudocode
+        sequence until it reaches the <END> token, or 400 tokens (whatever comes first).
+        The next token is predicted by taking the most probable one.
+        """
         self.eval()    
         with torch.no_grad():
             arr = arr.view(1,3, 224, 224)
@@ -303,6 +358,9 @@ class Net(nn.Module):
         return output_sequence
     
     def predict_stochastic(self, arr):
+        """
+        Like self.predict, except the next token is predicted by sampling from the output distribution.
+        """
         self.eval()    
         with torch.no_grad():
             arr = arr.view(1,3, 224, 224)
@@ -321,10 +379,15 @@ class Net(nn.Module):
         self.train()
         return output_sequence
     
+# initialze the model and optimizer
 large_cnn = LargeCNN(fc1_output_size).to(device)
 large_loss_fn = nn.CrossEntropyLoss()
 large_net = Net(f'storage/large_model_lr3e-4/', large_cnn, len_lexicon, lstm_hidden_size, fc1_output_size, device).to(device)
 large_optimizer = torch.optim.Adam(large_net.parameters(), lr=3e-4)
 
+# # start fit
 # large_net.fit(500000, batch_size, large_optimizer, large_loss_fn)
+
+# load save state
+# change 'cpu' to 'cuda' if necessary/desired
 large_net.load_state_dict(torch.load('large_net_checkpoint_iteration_345000.pt', map_location=torch.device('cpu')))

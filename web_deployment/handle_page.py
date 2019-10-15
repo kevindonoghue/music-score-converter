@@ -15,6 +15,11 @@ os.makedirs(os.path.join(MEDIA_ROOT, 'yolo_output'), exist_ok=True)
 os.makedirs(os.path.join(MEDIA_ROOT, 'current_measures'), exist_ok=True)
 
 class Opt:
+    """
+    I forked the yolo implementation from https://github.com/ultralytics/yolov3.
+    In order to use their scripts, I need to create this helper class.
+    It stores the information that would be passed by a command line parser.
+    """
     def __init__(self, path):
         self.source = path
         self.cfg = os.path.join(YOLO_DIR, 'cfg', 'score_yolo.cfg')
@@ -31,6 +36,11 @@ class Opt:
         
 
 def handle_page(path, measure_length, key_number, dir):
+    """
+    path is the path to the image of the page uploaded by the user.
+    This function detects the measures in that image, crops them out,
+    and saves them in the media/current_measures directory.
+    """
     filename = os.path.basename(path)[:-4]
     for file in os.scandir(os.path.join(MEDIA_ROOT, 'current_measures')):
         os.remove(file)

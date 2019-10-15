@@ -4,42 +4,42 @@ from scipy.ndimage.filters import correlate
 from skimage import transform
 
 
-# random_augmentation takes a numpy array of dimension 2 with entries between 0 and 1, distorts it, and rescales it
-# the rest of the functions are helper functions
-
-
-
-def rgb_to_grayscale(x):
-    # x is an numpy array with shape (a, b, 3)
-    a, b, _ = x.shape
-    weights = np.array([[0.2125, 0.7154, 0.0721]]).T
-    return (x @ weights).reshape(a, b)
-
+"""
+random_augmentation takes a numpy array of dimension 2 with entries between 0 and 1, distorts it, and rescales it.
+The rest of the functions are helper functions.
+"""
 
 ########################### augmentation functions ###########################
 def clip_left(x, k):
+    """removes k pixels from the left of the image"""
     return x[:, k:]
 
 def clip_right(x, k):
+    """removes k pixels from the right of the image"""
     return x[:, :x.shape[1]-k]
 
 def extend_left(x, k):
+    """adds k pixels to the left of the image"""
     left_col = x[:, 0].reshape(-1, 1)
     tiled = np.tile(left_col, (1, k))
     return np.concatenate([tiled, x], axis=1)
 
 def extend_right(x, k):
+    """adds k pixels to the right of the image"""
     right_col = x[:, 0].reshape(-1, 1)
     tiled = np.tile(right_col, (1, k))
     return np.concatenate([x, tiled], axis=1)
 
 def extend_up(x, k):
+    """adds k pixels to the top of the image"""
     return np.concatenate([np.ones((k, x.shape[1])), x])
 
 def extend_down(x, k):
+    """adds k pixels to the bottom of the image"""
     return np.concatenate([x, np.ones((k, x.shape[1]))])
 
 def horizontal_jiggle(x, N, p):
+    """adds some distortion to the image"""
     jiggle_direction = np.random.choice([1, -1])
     y = np.random.uniform(size=(N, x.shape[0]))
     for i in range(N):
@@ -51,6 +51,7 @@ def horizontal_jiggle(x, N, p):
     return x
 
 def vertical_jiggle(x, N, p):
+    """adds some distortion to the image"""
     jiggle_direction = np.random.choice([1, -1])
     y = np.random.uniform(size=(N, x.shape[1]))
     for i in range(N):
@@ -62,6 +63,7 @@ def vertical_jiggle(x, N, p):
     return x
 
 def add_noise(x, p, color='black'):
+    """adds noise to the image"""
     if color == 'black':
         noise = np.random.choice([0, 1], size=x.shape, p=[p, 1-p])
         return np.minimum(x, noise)
@@ -70,21 +72,18 @@ def add_noise(x, p, color='black'):
         return np.maximum(x, noise)
 
 def make_bw(x):
+    """changes the image from grayscale to black and white"""
     return np.around(x)
 
-def convert_to_1(x):
-    image = Image.fromarray(x*255)
-    image = image.convert('1')
-    x = np.array(image)/255
-    return x
-
 def thicken(x, dims):
+    """Thickens the lines in the image with a correlation filter of 1s. dims is the dimensions of the filter"""
     x = 1-x
     k = np.ones(dims)
     x = np.minimum(correlate(x, k), 1)
     return 1-x
 
 def add_splotch(x, N, r):
+    """add something like an inkblot to the page"""
     a = np.random.randint(x.shape[0])
     b = np.random.randint(x.shape[1])
     splotch_points = np.around(np.array([a, b]) + np.random.randn(N, 2)*r)
@@ -95,6 +94,7 @@ def add_splotch(x, N, r):
     return x
             
 def shrink_whitespace(x, p):
+    """Randomly decrease the vertical space between the two staves in the image"""
     white_rows = np.nonzero(x.mean(axis=1) == 1)[0]
     white_rows = white_rows[(white_rows >= int(x.shape[0]*3/8)) & (white_rows < int(x.shape[0]*5/8))]
     excluded_rows = np.random.choice(white_rows, size=int(p*len(white_rows)), replace=False)
@@ -104,6 +104,7 @@ def shrink_whitespace(x, p):
     return x[included_rows]
 
 def shrink_note_spacing(x, p):
+    """Randomly decrase the horizontal space between the notes in the image"""
     empty_columns = np.nonzero((1-x).sum(axis=0) <= 12)[0]
     excluded_columns = np.random.choice(empty_columns, size=int(p*len(empty_columns)), replace=False)
     mask = np.ones(x.shape[1])
@@ -114,6 +115,7 @@ def shrink_note_spacing(x, p):
 
 
 ########################### random augmentation functions ###########################
+"""These functions apply previous functions with random parameters"""
 def random_shrink_whitespace(x):
     p = np.random.rand()
     x = shrink_whitespace(x, p)
@@ -211,62 +213,10 @@ def random_post_augmentation(x):
     return x
 
 def random_augmentation(x, height, width):
+    """This function randomly distorts the image, and resizes it to shape (height, width).
+    x should have dimension 2 and be made entries between 0 and 1.
+    """
     x = random_pre_augmentation(x)
-    x = rescale(x, height, width)
-    x = random_post_augmentation(x)
-    return x
-
-
-
-################################ for scores #####################################
-
-def random_score_resize(x):
-    left = int(np.maximum(-1, x.shape[1]*np.random.randn()*0.05))
-    right = int(np.maximum(-10, x.shape[1]*np.random.randn()*0.05))
-    vertical_base = np.abs(x.shape[0]*np.random.randn()*0.1)
-    top = int(np.maximum(vertical_base + np.random.randn()*0.05, 0))
-    bottom = int(np.maximum(vertical_base + np.random.randn()*0.05, 0))
-    # top = int(np.abs(x.shape[0]*np.random.randn()*0.3))
-    # bottom = int(np.abs(x.shape[0]*np.random.randn()*0.3))
-    if left > 0:
-        x = extend_left(x, left)
-    else:
-        x = clip_left(x, np.abs(left))
-    if right > 0:
-        x = extend_right(x, right)
-    else:
-        x = clip_right(x, np.abs(right))
-    x = extend_up(x, top)
-    x = extend_down(x, bottom)
-    return x
-
-
-def random_score_thicken(x):
-    dim_choices = [(2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8)]
-    dims = dim_choices[np.random.randint(len(dim_choices))]
-    x = thicken(x, dims)
-    return x
-
-
-def random_score_pre_augmentation(x):
-    if np.random.rand() < 0.8:
-        x = random_shrink_whitespace(x)
-    if np.random.rand() < 0.9:
-        x = random_score_resize(x)
-    if np.random.rand() < 0.5:
-        x = random_score_thicken(x)
-    if np.random.rand() < 0.3:
-        x = random_splotches(x)
-    if np.random.rand() < 0.6:
-        x = random_noise(x)
-    if np.random.rand() < 0.3:
-        x = random_jiggle(x)
-    if np.random.rand() < 0.3:
-        x = transform.rotate(x, np.random.randn()*0.6, cval=1)
-    return x
-
-def random_score_augmentation(x, height, width):
-    x = random_score_pre_augmentation(x)
     x = rescale(x, height, width)
     x = random_post_augmentation(x)
     return x
