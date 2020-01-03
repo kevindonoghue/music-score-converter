@@ -7,7 +7,10 @@ import json
 import time
 
 # set to 'cuda' for GPU
-device='cpu'
+if torch.cuda.is_available():
+    device = 'cuda'
+else:
+    device = 'cpu'
 
 # the set of symbols in the pseudocode translation of xml
 tokens = [
@@ -22,19 +25,15 @@ word_to_ix = {word: i for i, word in enumerate(tokens)}
 ix_to_word = {str(i): word for i, word in enumerate(tokens)}
 len_lexicon = len(word_to_ix)
 
-# directory to access to the data for the model
-dataset_dir = 'storage/samples/'
-
 # some hyperparameters for the model
-lstm_hidden_size = 128
-fc1_output_size = 128
-seq_len = 64
-batch_size = 64
+lstm_hidden_size = 64
+fc1_output_size = 64
+seq_len = 500
 
 def get_time_signature_layer(measure_length, height=224, width=224):
     """The time signature data is stored in a channel in the input image.
     This function returns that channel. Here measure length is expected to be in (8, 12, 16)."""
-    x = np.zeros((height, width)).astype(np.uint8)
+    x = np.zeros(width).astype(np.uint8)
     if measure_length == 12:
         x[:int(height/2)] += 255
     if measure_length == 16:
@@ -44,7 +43,7 @@ def get_time_signature_layer(measure_length, height=224, width=224):
 def get_key_signature_layer(key_number, height=224, width=224):
     """The key signature data is stored in a channel in the input image.
     This function returns that channel. Here measure key number is expected to be in range(-7, 8)"""
-    x = np.zeros((height, width)).astype(np.uint8)
+    x = np.zeros(width).astype(np.uint8)
     splits = np.array_split(x, 15)
     splits[key_number+7] += 255
     return x
@@ -94,7 +93,7 @@ class Dataset():
         else:
             sequence_batch_indices = np.random.choice(len(self.sequences[validation_partition:]), size=batch_size)
         image_batch_indices = self.image_indices[sequence_batch_indices]
-        raw_image_batch = self.images[image_batch_indices].reshape(-1, 1, 224, 224)
+        raw_image_batch = self.images[image_batch_indices]
         measure_lengths_batch = self.measure_lengths[image_batch_indices]
         key_numbers_batch = self.key_numbers[image_batch_indices]
         measure_lengths_layers = []
@@ -104,16 +103,16 @@ class Dataset():
             key_number = key_numbers_batch[i]
             measure_lengths_layers.append(get_time_signature_layer(measure_length))
             key_numbers_layers.append(get_key_signature_layer(key_number))
-        measure_lengths_layers = np.array(measure_lengths_layers).reshape(-1, 1, 224, 224)
-        key_numbers_layers = np.array(key_numbers_layers).reshape(-1, 1, 224, 224)
-        image_batch = np.concatenate([raw_image_batch, measure_lengths_layers, key_numbers_layers], axis=1)
+        measure_lengths_layers = np.array(measure_lengths_layers).reshape(-1, 1, 224)
+        key_numbers_layers = np.array(key_numbers_layers).reshape(-1, 1, 224)
+        image_batch = np.concatenate([raw_image_batch, measure_lengths_layers, key_numbers_layers], axis=1).reshape(-1, 1, 226, 224)
         sequence_batch = self.sequences[sequence_batch_indices]
         image_batch = torch.Tensor(image_batch).type(torch.float).to(device)
         sequence_batch = torch.Tensor(sequence_batch).type(torch.long).to(device)
         return image_batch, sequence_batch, image_batch_indices
     
     
-def get_datasets(n):
+def get_datasets(dataset_dir, n):
     """
     Randomly generates n datasets and returns them in a list.
     """
@@ -141,25 +140,6 @@ class ConvSubunit(nn.Module):
     def forward(self, x):
         return self.sequential(x)
     
-class LargeConvUnit(nn.Module):
-    """
-    A torch module consisting of four ConvSubunits.
-    """
-    def __init__(self, input_size, output_size, filter_size, stride, padding, dropout):
-        super().__init__()
-        self.subunit1 = ConvSubunit(input_size, output_size, filter_size, 1, padding, dropout)
-        self.subunit2 = ConvSubunit(output_size, output_size, filter_size, 1, padding, dropout)
-        self.subunit3 = ConvSubunit(output_size, output_size, filter_size, 1, padding, dropout)
-        self.subunit4 = ConvSubunit(output_size, output_size, filter_size, stride, padding, dropout)
-
-    def forward(self, x):
-        x = self.subunit1(x)
-        cache = x
-        x = self.subunit2(x)
-        x = self.subunit3(x)
-        x = x + cache
-        x = self.subunit4(x)
-        return x
     
 class SmallConvUnit(nn.Module):
     """
@@ -175,48 +155,20 @@ class SmallConvUnit(nn.Module):
         x = self.subunit2(x)
         return x
     
-    
-class SmallCNN(nn.Module):
-    def __init__(self, output_size):
+class MiniCNN(nn.Module):
+    def __init__(self, output_size=fc1_output_size):
         super().__init__()
-        self.cnn = nn.Sequential(SmallConvUnit(3, 32, 3, 2, 1, 0.1), # (224, 224) --> (112, 112)
-                                 SmallConvUnit(32, 64, 3, 2, 1, 0.1), # (112, 112) --> (56, 56)
-                                 SmallConvUnit(64, 128, 3, 4, 1, 0.1), # (56, 56) --> (14, 14)
-                                 SmallConvUnit(128, 256, 3, 7, 1, 0.1)) # (14, 14) --> (2, 2)
-        self.fc = nn.Linear(1024, output_size)
+        self.cnn = nn.Sequential(SmallConvUnit(1, 5, 3, 2, 1, 0.1), # (226, 224) --> (113, 112)
+                                 SmallConvUnit(5, 10, 3, 2, 1, 0.1), # (113, 112) --> (57, 56)
+                                 SmallConvUnit(10, 20, 3, 4, 1, 0.1), # (57, 56) --> (15, 14)
+                                 SmallConvUnit(20, 40, 3, 7, 1, 0.1)) # (15, 14) --> (3, 2)
+        self.fc = nn.Linear(6*40, output_size)
         
     def forward(self, x):
         x = self.cnn(x)
-        x = x.view(-1, 1024)
+        x = x.view(-1, 6*40)
         x = self.fc(x)
         return x
-        
-class LargeCNN(nn.Module):
-    def __init__(self, output_size):
-        super().__init__()
-        self.cnn = nn.Sequential(LargeConvUnit(3, 32, 3, 2, 1, 0.1), # (224, 224) --> (112, 112)
-                                 LargeConvUnit(32, 64, 3, 2, 1, 0.1), # (112, 112) --> (56, 56)
-                                 LargeConvUnit(64, 128, 3, 4, 1, 0.1), # (56, 56) --> (14, 14)
-                                 LargeConvUnit(128, 256, 3, 7, 1, 0.1)) # (14, 14) --> (2, 2)
-        self.fc = nn.Linear(1024, output_size)
-        
-    def forward(self, x):
-        x = self.cnn(x)
-        x = x.view(-1, 1024)
-        x = self.fc(x)
-        return x
-        
-class SqueezeCNN(nn.Module):
-    def __init__(self, output_size):
-        super().__init__()
-        self.cnn = torchvision.models.squeezenet1_0(pretrained=True)
-        self.cnn.classifier[1] = nn.Conv2d(512, output_size, kernel_size=(1,1), stride=(1,1))
-        
-    def forward(self, x):
-        x = self.cnn(x)
-        return x
-    
-    
     
 class Net(nn.Module):
     """
@@ -227,29 +179,31 @@ class Net(nn.Module):
     The output of the first LSTM is concatenated with the output of the CNN and fed into a second LSTM,
     which is trained to predict the next character in the subsequence.
     """
-    def __init__(self, save_dir, cnn, len_lexicon, lstm_hidden_size, fc1_output_size, device, num_directions=1):
+    def __init__(self, save_dir, cnn, len_lexicon=len_lexicon, lstm_hidden_size=lstm_hidden_size, fc1_output_size=fc1_output_size, device=device):
         super().__init__()
-        self.save_dir = save_dir # directory to save logfile and save the model weights periodically
+        
+         # directory to save logfile and save the model weights periodically
+        os.makedirs(save_dir, exist_ok=True)
+        dir_num = len(list(os.scandir(save_dir)))
+        os.makedirs(os.path.join(save_dir, str(dir_num)))
+        self.save_dir = os.path.join(save_dir, str(dir_num))
+        
         self.len_lexicon = len_lexicon
         self.lstm_hidden_size = lstm_hidden_size
         self.fc1_output_size = fc1_output_size
-        self.num_directions = num_directions
-        self.bidirectional = (num_directions==2)
         self.cnn = cnn
         self.embed = nn.Embedding(num_embeddings=self.len_lexicon, embedding_dim=5)
         self.lstm1 = nn.LSTM(input_size=5,
                              hidden_size=self.lstm_hidden_size,
                              num_layers=2,
                              batch_first=True,
-                             dropout=0.3,
-                             bidirectional=self.bidirectional)
-        self.lstm2 = nn.LSTM(input_size=self.fc1_output_size+self.num_directions*self.lstm_hidden_size,
+                             dropout=0.3)
+        self.lstm2 = nn.LSTM(input_size=self.fc1_output_size+self.lstm_hidden_size,
                              hidden_size=self.lstm_hidden_size,
                              num_layers=2,
                              batch_first=True,
-                             dropout=0.3,
-                             bidirectional=self.bidirectional)
-        self.fc2 = nn.Linear(self.num_directions*self.lstm_hidden_size, self.len_lexicon)
+                             dropout=0.3)
+        self.fc2 = nn.Linear(self.lstm_hidden_size, self.len_lexicon)
         
     def forward(self, image_input, sequence_input, internal1=None, internal2=None):
         bs = image_input.shape[0]
@@ -257,13 +211,13 @@ class Net(nn.Module):
         if internal1:
             h1, c1 = internal1
         else:
-            h1 = torch.zeros(2*self.num_directions, bs, self.lstm_hidden_size).to(device)
-            c1 = torch.zeros(2*self.num_directions, bs, self.lstm_hidden_size).to(device)
+            h1 = torch.zeros(2, bs, self.lstm_hidden_size).to(device)
+            c1 = torch.zeros(2, bs, self.lstm_hidden_size).to(device)
         if internal2:
             h2, c2 = internal2
         else:
-            h2 = torch.zeros(2*self.num_directions, bs, self.lstm_hidden_size).to(device)
-            c2 = torch.zeros(2*self.num_directions, bs, self.lstm_hidden_size).to(device)
+            h2 = torch.zeros(2, bs, self.lstm_hidden_size).to(device)
+            c2 = torch.zeros(2, bs, self.lstm_hidden_size).to(device)
         image_output = self.cnn(image_input)
         image_output = image_output.repeat(1, sl).view(bs, sl, self.fc1_output_size)
         sequence_output, (h1, c1) = self.lstm1(self.embed(sequence_input), (h1, c1))
@@ -272,14 +226,15 @@ class Net(nn.Module):
         out = self.fc2(lstm2_out)
         return out, (h1, c1), (h2, c2)
     
-    def fit(self, iterations, batch_size, optimizer, loss_fn, print_every=100, save_every=5000, train_time=0, past_iterations=0):
-        if not os.path.exists(self.save_dir):
-            os.mkdir(self.save_dir)
+    def fit(self, iterations, batch_size, dataset_dir, optimizer, loss_fn, print_every=100, save_every=5000, train_time=0, past_iterations=0):
         time_checkpoint = time.time()
         for i in range(iterations):
             self.train()
-            if i % 500 == 0:
-                dataset = get_datasets(1)[0] # this gets a single dataset every 500 iterations
+            
+            if i % 5000 == 0:
+                print('starting to get dataset')
+                dataset = get_datasets(dataset_dir, 1)[0] # this gets a single dataset every 500 iterations
+                print('got dataset')
             arr, seq, _ = dataset.get_batch(batch_size)
             seq1 = seq[:, :-1] # initial sequence
             seq2 = seq[:, 1:] # next characters in the sequence
@@ -330,10 +285,10 @@ class Net(nn.Module):
                 pred_val = ' '.join(pred_val)
                 
                 # save the predictions and ground truths to a log file
-                with open(f'{self.save_dir}log.txt', 'a+') as f:
+                with open(os.path.join(self.save_dir, 'log.txt'), 'a+') as f:
                     info_string = f"""
                     ----
-                    iteration: {i}
+                    iteration: {past_iterations + i}
                     time elapsed: {train_time}
                     train loss: {loss}
                     val loss: {val_loss}
@@ -360,21 +315,24 @@ class Net(nn.Module):
             if i % save_every == 0 and i != 0:
                 for param_group in optimizer.param_groups:
                     param_group['lr'] *= 0.99
-                torch.save(self.state_dict(), f'{self.save_dir}checkpoint_iteration_{past_iterations+i}.pt')
-                with open(f'{self.save_dir}training_info.json', 'w+') as f:
+                torch.save(self.state_dict(), os.path.join(self.save_dir, f'checkpoint_iteration_{past_iterations+i}.pt'))
+                with open(os.path.join(self.save_dir, 'training_info.json'), 'w+') as f:
                     json.dump({'train_time': train_time, 'past_iterations': past_iterations+i}, f)
                     
-    def resume_fit(self, iterations, optimizer, loss_fn, print_every=100, save_every=5000):
+    def resume_fit(self, model_num, iterations, batch_size, dataset_dir, optimizer, loss_fn, print_every=100, save_every=5000):
         """
         After stopping the model or loading, can resume fit. Relies on the file training_info.json created by self.fit when the model is saved.
+        
+        model_num is the number of the folder in which to resume the model
         """
-        with open(f'{self.save_dir}training_info.json', 'w+') as f:
+        self.save_dir = os.path.join(self.save_dir, '..', str(model_num))
+        with open(os.path.join(self.save_dir, 'training_info.json')) as f:
             training_info = json.load(f)
         train_time = training_info['train_time']
         past_iterations = training_info['past_iterations']
-        checkpoint = torch.load(f'{self.save_dir}checkpoint_iteration_{past_iterations}.pt')
+        checkpoint = torch.load(os.path.join(self.save_dir, f'checkpoint_iteration_{past_iterations}.pt'))
         self.load_state_dict(checkpoint)
-        self.fit(iterations, optimizer, loss_fn, print_every=print_every, save_every=save_every, train_time=train_time, past_iterations=past_iterations)
+        self.fit(iterations, batch_size, dataset_dir, optimizer, loss_fn, print_every=print_every, save_every=save_every, train_time=train_time, past_iterations=past_iterations)
                 
              
     def predict(self, arr):
@@ -386,12 +344,12 @@ class Net(nn.Module):
         """
         self.eval()    
         with torch.no_grad():
-            arr = arr.view(1,3, 224, 224)
+            arr = arr.view(1,1, 226, 224)
             output_sequence = ['<START>']
-            h1 = torch.zeros(2*self.num_directions, 1, self.lstm_hidden_size).to(device)
-            c1 = torch.zeros(2*self.num_directions, 1, self.lstm_hidden_size).to(device)
-            h2 = torch.zeros(2*self.num_directions, 1, self.lstm_hidden_size).to(device)
-            c2 = torch.zeros(2*self.num_directions, 1, self.lstm_hidden_size).to(device)
+            h1 = torch.zeros(2, 1, self.lstm_hidden_size).to(device)
+            c1 = torch.zeros(2, 1, self.lstm_hidden_size).to(device)
+            h2 = torch.zeros(2, 1, self.lstm_hidden_size).to(device)
+            c2 = torch.zeros(2, 1, self.lstm_hidden_size).to(device)
             while output_sequence[-1] != '<END>' and len(output_sequence)<400:
                 sequence_input = torch.Tensor([word_to_ix[output_sequence[-1]]]).type(torch.long).view(1, 1).to(device)
                 out, (h1, c1), (h2, c2) = self.forward(arr, sequence_input, (h1, c1), (h2, c2))
@@ -406,12 +364,12 @@ class Net(nn.Module):
         """
         self.eval()    
         with torch.no_grad():
-            arr = arr.view(1,3, 224, 224)
+            arr = arr.view(1,1, 226, 224)
             output_sequence = ['<START>']
-            h1 = torch.zeros(2*self.num_directions, 1, self.lstm_hidden_size).to(device)
-            c1 = torch.zeros(2*self.num_directions, 1, self.lstm_hidden_size).to(device)
-            h2 = torch.zeros(2*self.num_directions, 1, self.lstm_hidden_size).to(device)
-            c2 = torch.zeros(2*self.num_directions, 1, self.lstm_hidden_size).to(device)
+            h1 = torch.zeros(2, 1, self.lstm_hidden_size).to(device)
+            c1 = torch.zeros(2, 1, self.lstm_hidden_size).to(device)
+            h2 = torch.zeros(2, 1, self.lstm_hidden_size).to(device)
+            c2 = torch.zeros(2, 1, self.lstm_hidden_size).to(device)
             while output_sequence[-1] != '<END>' and len(output_sequence)<400:
                 sequence_input = torch.Tensor([word_to_ix[output_sequence[-1]]]).type(torch.long).view(1, 1).to(device)
                 out, (h1, c1), (h2, c2) = self.forward(arr, sequence_input, (h1, c1), (h2, c2))
@@ -421,16 +379,3 @@ class Net(nn.Module):
                 output_sequence.append(ix_to_word[str(predicted_ix)])
         self.train()
         return output_sequence
-    
-# initialze the model and optimizer
-large_cnn = LargeCNN(fc1_output_size).to(device)
-large_loss_fn = nn.CrossEntropyLoss()
-large_net = Net(f'storage/large_model_lr3e-4/', large_cnn, len_lexicon, lstm_hidden_size, fc1_output_size, device).to(device)
-large_optimizer = torch.optim.Adam(large_net.parameters(), lr=3e-4)
-
-# # start fit
-# large_net.fit(500000, batch_size, large_optimizer, large_loss_fn)
-
-# load save state
-# change 'cpu' to 'cuda' if necessary/desired
-large_net.load_state_dict(torch.load('large_net_checkpoint_iteration_345000.pt', map_location=torch.device('cpu')))
