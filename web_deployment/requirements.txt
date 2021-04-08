@@ -2,7 +2,7 @@ beautifulsoup4==4.8.0
 bs4==0.0.1
 cycler==0.10.0
 decorator==4.4.0
-Django==2.2.6
+Django==2.2.20
 imageio==2.5.0
 kiwisolver==1.1.0
 lxml==4.4.1
